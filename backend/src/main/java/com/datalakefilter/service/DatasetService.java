@@ -3,6 +3,8 @@ package com.datalakefilter.service;
 import com.datalakefilter.dto.DatasetDecisionRequest;
 import com.datalakefilter.dto.CsvQualityResult;
 import com.datalakefilter.dto.UploadDatasetResponse;
+import com.datalakefilter.persistence.entity.DatasetRecord;
+import com.datalakefilter.persistence.repository.DatasetRecordRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MultipartFile;
@@ -20,15 +22,18 @@ public class DatasetService {
     private final MinioService minioService;
     private final HashService hashService;
     private final CsvQualityService csvQualityService;
+    private final DatasetRecordRepository datasetRecordRepository;
 
     public DatasetService(
             MinioService minioService,
             HashService hashService,
-            CsvQualityService csvQualityService
+            CsvQualityService csvQualityService,
+            DatasetRecordRepository datasetRecordRepository
     ) {
         this.minioService = minioService;
         this.hashService = hashService;
         this.csvQualityService = csvQualityService;
+        this.datasetRecordRepository = datasetRecordRepository;
     }
 
     public UploadDatasetResponse processDataset(MultipartFile file) {
@@ -36,7 +41,7 @@ public class DatasetService {
         String fileName = file.getOriginalFilename();
 
         if (fileName == null || fileName.isBlank()) {
-            return new UploadDatasetResponse(
+            return persist(new UploadDatasetResponse(
                     null,
                     null,
                     "REJECTED",
@@ -45,11 +50,11 @@ public class DatasetService {
                     null,
                     null,
                     null
-            );
+            ));
         }
 
         if (!fileName.toLowerCase().endsWith(".csv")) {
-            return new UploadDatasetResponse(
+            return persist(new UploadDatasetResponse(
                     fileName,
                     null,
                     "REJECTED",
@@ -58,7 +63,7 @@ public class DatasetService {
                     null,
                     null,
                     null
-            );
+            ));
         }
 
         CsvQualityResult quality = csvQualityService.analyze(file);
@@ -67,7 +72,7 @@ public class DatasetService {
 
                 minioService.uploadFile(rejectedPath, file);
 
-                return new UploadDatasetResponse(
+                return persist(new UploadDatasetResponse(
                         fileName,
                         rejectedPath,
                         "REJECTED",
@@ -76,7 +81,7 @@ public class DatasetService {
                         100.0,
                         "raw/" + fileName,
                         quality
-                );
+                ));
         }
 
         if (!quality.hasDataRows()) {
@@ -84,7 +89,7 @@ public class DatasetService {
 
             minioService.uploadFile(rejectedPath, file);
 
-            return new UploadDatasetResponse(
+            return persist(new UploadDatasetResponse(
                     fileName,
                     rejectedPath,
                     "REJECTED",
@@ -93,7 +98,7 @@ public class DatasetService {
                     null,
                     null,
                     quality
-            );
+            ));
         }
 
         if (quality.hasDuplicateColumns()) {
@@ -101,7 +106,7 @@ public class DatasetService {
 
             minioService.uploadFile(reviewPath, file);
 
-            return new UploadDatasetResponse(
+            return persist(new UploadDatasetResponse(
                     fileName,
                     reviewPath,
                     "REVIEW",
@@ -110,7 +115,7 @@ public class DatasetService {
                     null,
                     null,
                     quality
-            );
+            ));
         }
 
         if (quality.nullPercentage() >= 40.0) {
@@ -118,7 +123,7 @@ public class DatasetService {
 
             minioService.uploadFile(reviewPath, file);
 
-            return new UploadDatasetResponse(
+            return persist(new UploadDatasetResponse(
                     fileName,
                     reviewPath,
                     "REVIEW",
@@ -127,7 +132,7 @@ public class DatasetService {
                     null,
                     null,
                     quality
-            );
+            ));
         }
 
         String newFileHash = hashService.calculateFileHash(file);
@@ -153,7 +158,7 @@ public class DatasetService {
 
                     minioService.uploadFile(rejectedPath, file);
 
-                    return new UploadDatasetResponse(
+                    return persist(new UploadDatasetResponse(
                             fileName,
                             rejectedPath,
                             "REJECTED",
@@ -162,7 +167,7 @@ public class DatasetService {
                             100.0,
                             rawFile,
                             quality
-                    );
+                    ));
                 }
 
                 Set<String> existingRowHashes =
@@ -190,7 +195,7 @@ public class DatasetService {
 
             minioService.uploadFile(reviewPath, file);
 
-            return new UploadDatasetResponse(
+            return persist(new UploadDatasetResponse(
                     fileName,
                     reviewPath,
                     "REVIEW",
@@ -199,14 +204,14 @@ public class DatasetService {
                     highestPartialMatch,
                     mostSimilarFile,
                     quality
-            );
+            ));
         }
 
         String rawPath = "raw/" + fileName;
 
         minioService.uploadFile(rawPath, file);
 
-        return new UploadDatasetResponse(
+        return persist(new UploadDatasetResponse(
                 fileName,
                 rawPath,
                 "ACCEPTED",
@@ -215,7 +220,7 @@ public class DatasetService {
                 highestPartialMatch,
                 mostSimilarFile,
                 quality
-        );
+        ));
     }
 
     public UploadDatasetResponse approveDataset(DatasetDecisionRequest request) {
@@ -302,7 +307,7 @@ public class DatasetService {
 
                 minioService.moveFile(sourcePath, rejectedPath);
 
-                return new UploadDatasetResponse(
+                return persist(new UploadDatasetResponse(
                         fileName,
                         rejectedPath,
                         "REJECTED",
@@ -311,14 +316,14 @@ public class DatasetService {
                         100.0,
                         "raw/" + fileName,
                         request.quality()
-                );
+                ));
         }
 
         String destinationPath = destinationFolder + "/" + fileName;
 
         minioService.moveFile(sourcePath, destinationPath);
 
-        return new UploadDatasetResponse(
+        return persist(new UploadDatasetResponse(
                 fileName,
                 destinationPath,
                 status,
@@ -327,7 +332,12 @@ public class DatasetService {
                 request.partialMatchPercentage(),
                 request.matchedWith(),
                 request.quality()
-        );
+        ));
+    }
+
+    private UploadDatasetResponse persist(UploadDatasetResponse response) {
+        datasetRecordRepository.save(DatasetRecord.from(response));
+        return response;
     }
 
     private String validateReviewPath(String path) {

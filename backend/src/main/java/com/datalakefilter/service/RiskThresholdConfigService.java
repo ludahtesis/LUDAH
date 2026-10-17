@@ -2,7 +2,10 @@ package com.datalakefilter.service;
 
 import com.datalakefilter.dto.RiskThresholdConfigRequest;
 import com.datalakefilter.dto.RiskThresholdConfigResponse;
+import com.datalakefilter.persistence.entity.RiskThresholdConfigEntity;
+import com.datalakefilter.persistence.repository.RiskThresholdConfigRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -10,13 +13,20 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 @Service
 public class RiskThresholdConfigService {
 
-    private double cleanMax = 25.0;
-    private double frontierMax = 50.0;
+    private static final short CONFIG_ID = 1;
+    private final RiskThresholdConfigRepository repository;
 
-    public RiskThresholdConfigResponse getConfig() {
-        return buildResponse();
+    public RiskThresholdConfigService(RiskThresholdConfigRepository repository) {
+        this.repository = repository;
     }
 
+    @Transactional(readOnly = true)
+    public RiskThresholdConfigResponse getConfig() {
+        RiskThresholdConfigEntity config = getStoredConfig();
+        return buildResponse(config.getCleanMax(), config.getFrontierMax());
+    }
+
+    @Transactional
     public RiskThresholdConfigResponse updateConfig(RiskThresholdConfigRequest request) {
         if (request == null) {
             throw new ResponseStatusException(
@@ -27,18 +37,21 @@ public class RiskThresholdConfigService {
 
         validate(request.cleanMax(), request.frontierMax());
 
-        this.cleanMax = request.cleanMax();
-        this.frontierMax = request.frontierMax();
+        RiskThresholdConfigEntity config = getStoredConfig();
+        config.update(request.cleanMax(), request.frontierMax());
+        repository.save(config);
 
-        return buildResponse();
+        return buildResponse(config.getCleanMax(), config.getFrontierMax());
     }
 
+    @Transactional(readOnly = true)
     public double getCleanMax() {
-        return cleanMax;
+        return getStoredConfig().getCleanMax();
     }
 
+    @Transactional(readOnly = true)
     public double getFrontierMax() {
-        return frontierMax;
+        return getStoredConfig().getFrontierMax();
     }
 
     private void validate(double cleanMax, double frontierMax) {
@@ -57,7 +70,14 @@ public class RiskThresholdConfigService {
         }
     }
 
-    private RiskThresholdConfigResponse buildResponse() {
+    private RiskThresholdConfigEntity getStoredConfig() {
+        return repository.findById(CONFIG_ID)
+                .orElseThrow(() -> new IllegalStateException(
+                        "No se encontró la configuración inicial de umbrales."
+                ));
+    }
+
+    private RiskThresholdConfigResponse buildResponse(double cleanMax, double frontierMax) {
         return new RiskThresholdConfigResponse(
                 cleanMax,
                 frontierMax,

@@ -1,13 +1,33 @@
 services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: postgres-ludah
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: ludah
+      POSTGRES_USER: ludah
+      POSTGRES_PASSWORD: ludah123
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ludah -d ludah"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
   minio:
     image: minio/minio
     container_name: minio-datalake-filter
     ports:
       - "9000:9000"
-      - "9001:9001"
+      - "9002:9001"
     environment:
       MINIO_ROOT_USER: admin
       MINIO_ROOT_PASSWORD: admin123
     command: server /data --console-address ":9001"
     volumes:
       - ./minio-data:/data
+
+volumes:
+  postgres-data:

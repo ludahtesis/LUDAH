@@ -469,9 +469,10 @@ clearQueue(): void {
     }).subscribe({
       next: response => {
         this.riskConfig = response;
-        this.riskConfigMessage = 'Escala actualizada correctamente.';
+        this.riskConfigMessage = '';
         this.riskConfigError = '';
-        
+        this.showThresholdModal = false;
+
         this.loadGlobalAudit();
       },
       error: () => {
@@ -481,6 +482,8 @@ clearQueue(): void {
   }
 
   openThresholdModal(): void {
+    this.riskConfigMessage = '';
+    this.riskConfigError = '';
     this.showThresholdModal = true;
   }
 

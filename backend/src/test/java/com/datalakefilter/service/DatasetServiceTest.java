@@ -3,6 +3,7 @@ package com.datalakefilter.service;
 import com.datalakefilter.dto.CsvQualityResult;
 import com.datalakefilter.dto.DatasetDecisionRequest;
 import com.datalakefilter.dto.UploadDatasetResponse;
+import com.datalakefilter.persistence.repository.DatasetRecordRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -33,6 +34,9 @@ class DatasetServiceTest {
 
     @Mock
     private CsvQualityService csvQualityService;
+
+    @Mock
+    private DatasetRecordRepository datasetRecordRepository;
 
     @InjectMocks
     private DatasetService datasetService;

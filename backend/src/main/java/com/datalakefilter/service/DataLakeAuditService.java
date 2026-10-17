@@ -2,6 +2,8 @@ package com.datalakefilter.service;
 
 import com.datalakefilter.dto.AuditFactorResponse;
 import com.datalakefilter.dto.DataLakeAuditResponse;
+import com.datalakefilter.persistence.entity.AuditRecord;
+import com.datalakefilter.persistence.repository.AuditRecordRepository;
 import io.minio.GetObjectArgs;
 import io.minio.ListObjectsArgs;
 import io.minio.MinioClient;
@@ -32,19 +34,28 @@ public class DataLakeAuditService {
     private final RiskThresholdConfigService riskThresholdConfigService;
 
     private final MinioClient minioClient;
+    private final AuditRecordRepository auditRecordRepository;
 
     @Value("${minio.bucket}")
     private String bucketName;
 
     public DataLakeAuditService(
             MinioClient minioClient,
-            RiskThresholdConfigService riskThresholdConfigService
+            RiskThresholdConfigService riskThresholdConfigService,
+            AuditRecordRepository auditRecordRepository
     ) {
         this.minioClient = minioClient;
         this.riskThresholdConfigService = riskThresholdConfigService;
+        this.auditRecordRepository = auditRecordRepository;
     }
 
     public DataLakeAuditResponse auditDataLake() {
+        DataLakeAuditResponse response = calculateDataLakeAudit();
+        auditRecordRepository.save(AuditRecord.from("GLOBAL", response));
+        return response;
+    }
+
+    private DataLakeAuditResponse calculateDataLakeAudit() {
         List<String> rawFiles = listCsvFiles("raw/");
         List<String> reviewFiles = listCsvFiles("review/");
         List<String> rejectedFiles = listCsvFiles("rejected/");
@@ -102,6 +113,12 @@ public class DataLakeAuditService {
 
     public DataLakeAuditResponse auditRepository(String prefix) {
         String normalizedPrefix = normalizePrefix(prefix);
+        DataLakeAuditResponse response = calculateRepositoryAudit(normalizedPrefix);
+        auditRecordRepository.save(AuditRecord.from(normalizedPrefix, response));
+        return response;
+    }
+
+    private DataLakeAuditResponse calculateRepositoryAudit(String normalizedPrefix) {
         List<String> repositoryFiles = listCsvFiles(normalizedPrefix);
         int totalFiles = repositoryFiles.size();
 
