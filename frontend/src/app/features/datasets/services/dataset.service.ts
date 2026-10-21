@@ -77,11 +77,18 @@ export class DatasetService {
     );
   }
 
-  getRawRepositoryAudit(): Observable<DataLakeAuditResponse> {
-    const timestamp = new Date().getTime();
-
+  getRawRepositoryAudit(
+    motivo: string = 'NO_REGISTRADO'
+  ): Observable<DataLakeAuditResponse> {
     return this.http.get<DataLakeAuditResponse>(
-      `${this.apiUrl}/audit/repository?prefix=raw/&t=${timestamp}`
+      `${this.apiUrl}/audit/repository`,
+      {
+        params: {
+          prefix: 'raw/',
+          motivo,
+          t: Date.now().toString()
+        }
+      }
     );
   }
 
