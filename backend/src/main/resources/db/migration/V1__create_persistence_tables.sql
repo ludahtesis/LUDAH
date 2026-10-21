@@ -51,3 +51,4 @@ CREATE TABLE risk_threshold_config (
 
 INSERT INTO risk_threshold_config (id, clean_max, frontier_max)
 VALUES (1, 25.0, 50.0);
+
